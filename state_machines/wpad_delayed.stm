@@ -1,0 +1,44 @@
+(*
+ * WPAD delayed inject state machine
+ * Start een access point zonder WPAD.
+ * Na de eerste DHCP renew wordt optie 252 toegevoegd via een reload.
+ * Bedoeld om te testen of een client de proxy oppakt terwijl de VPN al actief is.
+ *
+ * Stappen:
+ *   1. Verbind de client met het netwerk
+ *   2. Verbind de VPN op de client
+ *   3. Wacht tot de lease verloopt (30 seconden) en het renew process opnieuw plaatsvindt
+ *
+ * Pas aan voordat je dit gebruikt:
+ *   - ap.dhcp4_wpad_proxy  : adres van je proxy server (host:port)
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  miscnet.masquerade("true");
+
+  ap = accesspoint();
+  ap.wifi_interface = "wlan0";
+  ap.ipv4_addr = "192.168.60.1";
+  ap.ipv4_netmask = "255.255.255.0";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_dns = "8.8.8.8";
+  ap.dhcp4_router = "192.168.60.1";
+  (* korte lease time het renew process snel opnieuw plaatsvindt. Niet altijd volledig DORA, maar dat maakt niet uit*)
+  ap.dhcp4_leasetime = "30";
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("Access point kon niet worden opgestart: ", errstr);
+
+state ap_up:
+  print("Access point actief, nog geen WPAD.");
+  print("Verbind nu de VPN op de client.");
+  print("Na 30 seconden wordt WPAD geinjecteerd via DHCP renew.");
+  ap.dhcp4_renew(on_renew);
+
+state on_renew:
+  print("DHCP renew gedetecteerd, injecteren WPAD optie 252.");
+  ap.dhcp4_wpad_proxy = "172.233.57.218:8080";
+  ap.dhcp4_reload();
+  print("WPAD geinjecteerd. Controleer of de browser de proxy gebruikt.");

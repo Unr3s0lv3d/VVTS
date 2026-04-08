@@ -19,12 +19,15 @@ class DnsMitm extends Subscribable implements IUnblockable {
     var $aOverridesAAAA;
     var $dwBindAddr;
     var $abBindIpv6Addr;
+    var $szCatchAllAddress;
+    var $aAuthorizedIps;
 
     function __construct() {
         parent::__construct();
         $this->aTransactionMap = [];
         $this->aOverridesA = [];
         $this->aOverridesAAAA = [];
+        $this->aAuthorizedIps = [];
 
         MainLoop::GetInstance()->RegisterObject($this);
     }
@@ -66,6 +69,8 @@ class DnsMitm extends Subscribable implements IUnblockable {
         $wOffsetCorrect = 0;
         $wAdCount = (ord($abRequest[6]) << 8) | ord($abRequest[7]);
 
+        $bIsAQuery = false;
+        $bIsAAAAQuery = false;
         $bIsARequested = false;
         $bIsAAAARequested = false;
         $szDomainName = null;
@@ -91,18 +96,46 @@ class DnsMitm extends Subscribable implements IUnblockable {
             }
             $szDomainName = $szName;
             $dwDomainNameOffset = $dwOffsetPreDomainName;
-            if ($wType === 1 && isset($this->aOverridesA[strtolower($szName)])) {
-                $bIsARequested = true;
-            } else if ($wType === 28 && isset($this->aOverridesAAAA[strtolower($szName)])) {
-                $bIsAAAARequested = true;
+            if ($wType === 1) {
+                $bIsAQuery = true;
+                if (isset($this->aOverridesA[strtolower($szName)])) {
+                    $bIsARequested = true;
+                }
+            } else if ($wType === 28) {
+                $bIsAAAAQuery = true;
+                if (isset($this->aOverridesAAAA[strtolower($szName)])) {
+                    $bIsAAAARequested = true;
+                }
             }
         }
 
-        if ($szDomainName === null || $wFlags & 0x8000 || (
-            !isset($this->aOverridesA[strtolower($szDomainName)]) &&
-            !isset($this->aOverridesAAAA[strtolower($szDomainName)])
-        )) {
-            /* no overrides set for this domain -> pass through to real DNS server */
+        if ($szDomainName === null || $wFlags & 0x8000) {
+            return null;
+        }
+
+        /* authorized clients bypass catch-all and pass through to real DNS server */
+        $szPeerIp = strtok($szPeer, ":");
+        if ($this->szCatchAllAddress !== null && in_array($szPeerIp, $this->aAuthorizedIps, true)) {
+            return null;
+        }
+
+        /* determine effective addresses (specific override takes priority over catch-all) */
+        $szEffectiveAddressA = null;
+        $szEffectiveAddressAAAA = null;
+
+        if ($bIsARequested) {
+            $szEffectiveAddressA = $this->aOverridesA[strtolower($szDomainName)];
+        } else if ($bIsAQuery && $this->szCatchAllAddress !== null) {
+            $szEffectiveAddressA = $this->szCatchAllAddress;
+            $bIsARequested = true;
+        }
+
+        if ($bIsAAAARequested) {
+            $szEffectiveAddressAAAA = $this->aOverridesAAAA[strtolower($szDomainName)];
+        }
+
+        if (!$bIsARequested && !$bIsAAAARequested) {
+            /* no overrides and no catch-all applies -> pass through to real DNS server */
             return null;
         }
 
@@ -115,9 +148,9 @@ class DnsMitm extends Subscribable implements IUnblockable {
         $abResponse .= "\x00\x00"; /* number of authority RRs */
         $abResponse .= "\x00\x00"; /* number of additional RRs */
         $abResponse .= substr($abRequest, 12, $dwOffset - 12);
-        
+
         if ($bIsARequested) {
-            $szOverride = $this->aOverridesA[strtolower($szDomainName)];
+            $szOverride = $szEffectiveAddressA;
             printf("[i] applying DNS response override for %s: %s\n", $szDomainName, $szOverride);
             $dwOverride = MiscNet::Ipv4StringToDword($szOverride);
             $abOverride = chr($dwOverride >> 24) . chr($dwOverride >> 16) . chr($dwOverride >> 8) . chr($dwOverride);
@@ -130,7 +163,7 @@ class DnsMitm extends Subscribable implements IUnblockable {
             $abResponse .= $abOverride;
         }
         if ($bIsAAAARequested) {
-            $szOverride = $this->aOverridesAAAA[strtolower($szDomainName)];
+            $szOverride = $szEffectiveAddressAAAA;
             printf("[i] applying DNS response override for %s: %s\n", $szDomainName, $szOverride);
             $abOverride = MiscNet::Ipv6StringToBinary($szOverride);
 

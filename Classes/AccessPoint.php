@@ -13,6 +13,8 @@ use \VVTS\Classes\DhcpServer;
 use \VVTS\Classes\SlaacAdvertiser;
 use \VVTS\Classes\Nat64;
 use \VVTS\Classes\DnsMitm;
+use \VVTS\Classes\WpadServer;
+use \VVTS\Classes\CaptivePortalServer;
 use \VVTS\Types\PerClientRoute;
 use \VVTS\Types\RouteIpv6;
 use \VVTS\Types\ScriptInvokeError;
@@ -34,6 +36,8 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
     var $oNat64;
     var $oDnsMitm;
     var $oArpResponder;
+    var $oWpadServer;
+    var $oCaptivePortalServer;
     var $szWifiInterface;
     var $szWifiDriver;
     var $szWifiSsid;
@@ -62,6 +66,14 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
     var $aSlaacStaticRoutes;
     var $aabSlaacNeighbors;
 
+    var $szDhcp4WpadProxy;
+    var $szDhcp4WpadDirect;
+    var $szDhcp4WpadProxyHosts;
+    var $szDhcp4WpadUrl;
+    var $szCaptivePortalPage;
+    var $szCaptivePortalRedirect;
+    var $szCaptivePortalMode;
+    var $szDhcp4CaptivePortalUri;
     var $bRouteToDefault;
     var $bNat64Enable;
     var $bDnsEnable;
@@ -102,6 +114,8 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
         // printf("accesspoint::Teardown()\n");
         if ($this->oDnsMitm != null) { $this->oDnsMitm->Teardown(); $this->oDnsMitm = null; }
         if ($this->oArpResponder != null) { $this->oArpResponder->Teardown(); $this->oArpResponder = null; }
+        if ($this->oWpadServer != null) { $this->oWpadServer->Teardown(); $this->oWpadServer = null; }
+        if ($this->oCaptivePortalServer != null) { $this->oCaptivePortalServer->Teardown(); $this->oCaptivePortalServer = null; }
         if ($this->oDhcp4 != null) { $this->oDhcp4->Teardown(); $this->oDhcp4 = null; }
         if ($this->oSlaac != null) { $this->oSlaac->Teardown(); $this->oSlaac = null; }
         if ($this->oNat64 != null) { $this->oNat64->Teardown(); $this->oNat64 = null; }
@@ -150,33 +164,134 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
                 goto _error;
             }
 
-            if ($this->bDhcp4Enable) {
-                $this->oDhcp4 = new DhcpServer();
-                $this->oDhcp4->szInterface = $this->szApInterface;
-                $this->oDhcp4->dwDns = $this->dwDhcp4Dns;
-                $this->oDhcp4->dwRouter = $this->dwDhcp4Router;
-                $this->oDhcp4->dwAvoid = $this->dwDhcp4Avoid;
-                $this->oDhcp4->dwLeaseTime = $this->dwDhcp4LeaseTime;
-                $this->oDhcp4->szDomain = $this->szDhcp4Domain;
-                foreach($this->aDhcp4StaticRoutes as $oRoute) {
-                    $this->oDhcp4->SetStaticRoute($oRoute->dwAddress, $oRoute->dwNetmask, $oRoute->dwGateway);
+            if ($this->szDhcp4WpadUrl === null && $this->szDhcp4WpadProxy !== null) {
+                $this->oWpadServer = new WpadServer();
+                $this->oWpadServer->szBindAddr = MiscNet::DwordToIpv4String($this->dwIpv4Address);
+                $this->oWpadServer->szProxyAddr = $this->szDhcp4WpadProxy;
+                if ($this->szDhcp4WpadDirect !== null) {
+                    foreach(array_filter(explode(';', $this->szDhcp4WpadDirect)) as $szHost) {
+                        array_push($this->oWpadServer->aDirectHosts, trim($szHost));
+                    }
                 }
-                $this->oDhcp4->dwNetmask = $this->dwDhcp4Netmask;
-                $this->oDhcp4->Subscribe("dhcp4_up", $this, "Stage2_OnDhcp4Up", null, true);
-                $this->oDhcp4->Subscribe("dhcp4_err", $this, "Stage2_OnDhcp4Err", null, true);
-                $this->oDhcp4->Subscribe("dhcp4_client_connected", $this, "OnIpv4ClientConnected", null, false);
-                $this->oDhcp4->Subscribe("dhcp4_client_connected", $this, "OnPeerIsUp", null, false);
-                $this->oDhcp4->BringUp();
+                if ($this->szDhcp4WpadProxyHosts !== null) {
+                    foreach(array_filter(explode(';', $this->szDhcp4WpadProxyHosts)) as $szEntry) {
+                        $aParts = explode('=', trim($szEntry), 2);
+                        if (count($aParts) === 2) {
+                            $this->oWpadServer->aProxyHosts[trim($aParts[0])] = trim($aParts[1]);
+                        }
+                    }
+                }
+                $this->oWpadServer->Subscribe("wpad_up", $this, "Stage1b_OnWpadUp", null, true);
+                $this->oWpadServer->Subscribe("wpad_err", $this, "Stage1b_OnWpadErr", null, true);
+                $this->oWpadServer->BringUp();
                 return;
             }
         }
 
-        /* no dhcp4 -> immediately trigger success signal */
-        return $this->Stage2_OnDhcp4Up();
+        return $this->Stage1b_OnWpadUp();
 
 _error:
         $this->Teardown();
         return $this->PerformTransition("error");
+    }
+
+    function Stage1b_OnWpadUp() {
+        printf("[.] Stage1b_OnWpadUp\n");
+
+        if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
+            $this->oCaptivePortalServer = new CaptivePortalServer();
+            $this->oCaptivePortalServer->szBindAddr = MiscNet::DwordToIpv4String($this->dwIpv4Address);
+            $this->oCaptivePortalServer->szPortalPage = $this->szCaptivePortalPage;
+            $this->oCaptivePortalServer->szRedirectUrl = $this->szCaptivePortalRedirect;
+            $this->oCaptivePortalServer->Subscribe("portal_up", $this, "Stage1c_OnPortalUp", null, true);
+            $this->oCaptivePortalServer->Subscribe("portal_err", $this, "Stage1c_OnPortalErr", null, true);
+            $this->oCaptivePortalServer->Subscribe("client_authorized", $this, "OnClientAuthorized", null, false);
+            $this->oCaptivePortalServer->BringUp();
+            return;
+        }
+
+        return $this->Stage1c_OnPortalUp();
+    }
+
+    function Stage1c_OnPortalUp() {
+        printf("[.] Stage1c_OnPortalUp\n");
+
+        if ($this->szCaptivePortalMode === "dns_all" && $this->szApInterface !== null) {
+            $szIface = $this->szApInterface;
+            shell_exec("iptables -N VVTS_PORTAL 2>/dev/null");
+            shell_exec("iptables -I FORWARD -i " . escapeshellarg($szIface) . " -j VVTS_PORTAL");
+            shell_exec("iptables -I INPUT -i " . escapeshellarg($szIface) . " -j VVTS_PORTAL");
+            shell_exec("iptables -A VVTS_PORTAL -p udp --dport 67 -j ACCEPT");
+            shell_exec("iptables -A VVTS_PORTAL -p udp --dport 53 -j ACCEPT");
+            shell_exec("iptables -A VVTS_PORTAL -p tcp --dport 80 -j ACCEPT");
+            shell_exec("iptables -A VVTS_PORTAL -j DROP");
+
+            array_push($this->aBacklog, "iptables -D FORWARD -i " . escapeshellarg($szIface) . " -j VVTS_PORTAL 2>/dev/null");
+            array_push($this->aBacklog, "iptables -D INPUT -i " . escapeshellarg($szIface) . " -j VVTS_PORTAL 2>/dev/null");
+            array_push($this->aBacklog, "iptables -F VVTS_PORTAL 2>/dev/null");
+            array_push($this->aBacklog, "iptables -X VVTS_PORTAL 2>/dev/null");
+        }
+
+        if ($this->bDhcp4Enable) {
+            $this->oDhcp4 = new DhcpServer();
+            $this->oDhcp4->szInterface = $this->szApInterface;
+            $this->oDhcp4->dwDns = $this->dwDhcp4Dns;
+            $this->oDhcp4->dwRouter = $this->dwDhcp4Router;
+            $this->oDhcp4->dwAvoid = $this->dwDhcp4Avoid;
+            $this->oDhcp4->dwLeaseTime = $this->dwDhcp4LeaseTime;
+            $this->oDhcp4->szDomain = $this->szDhcp4Domain;
+            foreach($this->aDhcp4StaticRoutes as $oRoute) {
+                $this->oDhcp4->SetStaticRoute($oRoute->dwAddress, $oRoute->dwNetmask, $oRoute->dwGateway);
+            }
+            $this->oDhcp4->dwNetmask = $this->dwDhcp4Netmask;
+            if ($this->szDhcp4WpadUrl !== null) {
+                $this->oDhcp4->szWpadUrl = $this->szDhcp4WpadUrl;
+            } else if ($this->szDhcp4WpadProxy !== null) {
+                $this->oDhcp4->szWpadUrl = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/wpad.dat";
+            }
+            if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
+                if ($this->szDhcp4CaptivePortalUri !== null) {
+                    $this->oDhcp4->szCaptivePortalUri = $this->szDhcp4CaptivePortalUri;
+                } else if ($this->szCaptivePortalRedirect !== null) {
+                    $this->oDhcp4->szCaptivePortalUri = $this->szCaptivePortalRedirect;
+                } else {
+                    $this->oDhcp4->szCaptivePortalUri = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/";
+                }
+            }
+            $this->oDhcp4->Subscribe("dhcp4_up", $this, "Stage2_OnDhcp4Up", null, true);
+            $this->oDhcp4->Subscribe("dhcp4_err", $this, "Stage2_OnDhcp4Err", null, true);
+            $this->oDhcp4->Subscribe("dhcp4_client_connected", $this, "OnIpv4ClientConnected", null, false);
+            $this->oDhcp4->Subscribe("dhcp4_client_connected", $this, "OnPeerIsUp", null, false);
+            $this->oDhcp4->BringUp();
+            return;
+        }
+
+        /* no dhcp4 -> immediately trigger success signal */
+        return $this->Stage2_OnDhcp4Up();
+    }
+
+    function Stage1b_OnWpadErr($szErrstr) {
+        printf("[.] Stage1b_OnWpadErr\n");
+        ScriptEngine::GetInstance()->SetErrstr("Could not bring up wpad server: " . $szErrstr);
+        $this->Teardown();
+        $this->PerformTransition("error");
+    }
+
+    function Stage1c_OnPortalErr($szErrstr) {
+        printf("[.] Stage1c_OnPortalErr\n");
+        ScriptEngine::GetInstance()->SetErrstr("Could not bring up captive portal server: " . $szErrstr);
+        $this->Teardown();
+        $this->PerformTransition("error");
+    }
+
+    function OnClientAuthorized($szClientIp) {
+        printf("[i] OnClientAuthorized: %s\n", $szClientIp);
+        if ($this->oDnsMitm !== null) {
+            array_push($this->oDnsMitm->aAuthorizedIps, $szClientIp);
+        }
+        shell_exec("iptables -I VVTS_PORTAL 1 -s " . escapeshellarg($szClientIp) . " -j ACCEPT");
+        ScriptEngine::GetInstance()->SetString("authorized_ip", $szClientIp);
+        $this->PerformTransition("client_authorized");
     }
 
     function Stage1_OnHostApErr($szErrstr) {
@@ -291,7 +406,7 @@ _error:
     function Stage4_OnNat64Up() {
         printf("[.] Stage4_OnNat64Up\n");
 
-        if ($this->bDnsEnable) {
+        if ($this->bDnsEnable || $this->szCaptivePortalMode !== null) {
             $this->oDnsMitm = new DnsMitm();
             $this->oDnsMitm->dwBindAddr = $this->dwIpv4Address;
             $this->oDnsMitm->abBindIpv6Addr = $this->abIpv6Address;
@@ -300,6 +415,18 @@ _error:
             }
             foreach($this->aDnsOverridesAAAA as $szDomainName => $szIpAddress) {
                 $this->oDnsMitm->SetOverride($szDomainName, $szIpAddress);
+            }
+            if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
+                $szPortalIp = MiscNet::DwordToIpv4String($this->dwIpv4Address);
+                if ($this->szCaptivePortalMode === "dns_all") {
+                    $this->oDnsMitm->szCatchAllAddress = $szPortalIp;
+                } else {
+                    /* dns_detect: only spoof captive portal detection domains */
+                    $this->oDnsMitm->SetOverride("www.msftconnecttest.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("connectivitycheck.gstatic.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("captive.apple.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("nmcheck.gnome.org", $szPortalIp);
+                }
             }
             $this->oDnsMitm->Subscribe("dns_up", $this, "Stage5_OnDnsUp", null, true);
             $this->oDnsMitm->Subscribe("dns_err", $this, "Stage5_OnDnsErr", null, true);
@@ -822,6 +949,114 @@ _error:
         }
     }
 
+    function StateMachineSet_dhcp4_wpad_proxy($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_proxy must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szDhcp4WpadProxy = null;
+        } else if (!preg_match('/^[^:]+:[0-9]+$/', $oValue->szLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_proxy must be in host:port format, got: " . $oValue->szLiteral);
+        } else {
+            $this->szDhcp4WpadProxy = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_dhcp4_wpad_direct($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_direct must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szDhcp4WpadDirect = null;
+        } else {
+            $this->szDhcp4WpadDirect = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_dhcp4_wpad_proxy_hosts($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_proxy_hosts must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szDhcp4WpadProxyHosts = null;
+        } else {
+            foreach(array_filter(explode(';', $oValue->szLiteral)) as $szEntry) {
+                $aParts = explode('=', trim($szEntry), 2);
+                if (count($aParts) !== 2 || !preg_match('/^[^:]+:[0-9]+$/', trim($aParts[1]))) {
+                    throw new ScriptInvokeError("dhcp4_wpad_proxy_hosts entries must be in host=proxyhost:port format, got: " . trim($szEntry));
+                }
+            }
+            $this->szDhcp4WpadProxyHosts = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_dhcp4_wpad_url($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_url must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szDhcp4WpadUrl = null;
+        } else if (!preg_match('/^https?:\/\/.+/', $oValue->szLiteral)) {
+            throw new ScriptInvokeError("dhcp4_wpad_url must be a valid http:// or https:// URL, got: " . $oValue->szLiteral);
+        } else {
+            $this->szDhcp4WpadUrl = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_captive_portal_mode($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("captive_portal_mode must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szCaptivePortalMode = null;
+        } else if ($oValue->szLiteral !== "dns_detect" && $oValue->szLiteral !== "dns_all") {
+            throw new ScriptInvokeError("captive_portal_mode must be \"dns_detect\" or \"dns_all\", got: " . $oValue->szLiteral);
+        } else {
+            $this->szCaptivePortalMode = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_captive_portal_page($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("captive_portal_page must be of type string");
+        }
+
+        $this->szCaptivePortalPage = ($oValue->szLiteral === "") ? null : $oValue->szLiteral;
+    }
+
+    function StateMachineSet_captive_portal_redirect($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("captive_portal_redirect must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szCaptivePortalRedirect = null;
+        } else if (!preg_match('/^https?:\/\/.+/', $oValue->szLiteral)) {
+            throw new ScriptInvokeError("captive_portal_redirect must be a valid http:// or https:// URL, got: " . $oValue->szLiteral);
+        } else {
+            $this->szCaptivePortalRedirect = $oValue->szLiteral;
+        }
+    }
+
+    function StateMachineSet_dhcp4_captive_portal_uri($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_captive_portal_uri must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->szDhcp4CaptivePortalUri = null;
+        } else if (!preg_match('/^https?:\/\/.+/', $oValue->szLiteral)) {
+            throw new ScriptInvokeError("dhcp4_captive_portal_uri must be a valid http:// or https:// URL, got: " . $oValue->szLiteral);
+        } else {
+            $this->szDhcp4CaptivePortalUri = $oValue->szLiteral;
+        }
+    }
+
     function StateMachineInvoke_dhcp4_reload(...$aArguments) {
         if (count($aArguments) != 0) {
             throw new ScriptInvokeError("dhcp4_reload requires no arguments");
@@ -849,6 +1084,32 @@ _error:
             $this->oDhcp4->SetStaticRoute($oRoute->dwAddress, $oRoute->dwNetmask, $oRoute->dwGateway);
         }
         $this->oDhcp4->dwNetmask = $this->dwDhcp4Netmask;
+        if ($this->szDhcp4WpadUrl !== null) {
+            $this->oDhcp4->szWpadUrl = $this->szDhcp4WpadUrl;
+        } else if ($this->szDhcp4WpadProxy !== null) {
+            if ($this->oWpadServer === null) {
+                $this->oWpadServer = new WpadServer();
+                $this->oWpadServer->szBindAddr = MiscNet::DwordToIpv4String($this->dwIpv4Address);
+                $this->oWpadServer->szProxyAddr = $this->szDhcp4WpadProxy;
+                if ($this->szDhcp4WpadDirect !== null) {
+                    foreach(array_filter(explode(';', $this->szDhcp4WpadDirect)) as $szHost) {
+                        array_push($this->oWpadServer->aDirectHosts, trim($szHost));
+                    }
+                }
+                if ($this->szDhcp4WpadProxyHosts !== null) {
+                    foreach(array_filter(explode(';', $this->szDhcp4WpadProxyHosts)) as $szEntry) {
+                        $aParts = explode('=', trim($szEntry), 2);
+                        if (count($aParts) === 2) {
+                            $this->oWpadServer->aProxyHosts[trim($aParts[0])] = trim($aParts[1]);
+                        }
+                    }
+                }
+                $this->oWpadServer->BringUp();
+            }
+            $this->oDhcp4->szWpadUrl = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/wpad.dat";
+        } else {
+            $this->oDhcp4->szWpadUrl = null;
+        }
         if (!$bEnabled) {
             $this->oDhcp4->BringUp();
         } else {

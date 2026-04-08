@@ -20,6 +20,8 @@ class DhcpServer extends Subscribable implements IUnblockable {
     var $dwAvoid;
     var $dwLeaseTime;
     var $szDomain;
+    var $szWpadUrl;
+    var $szCaptivePortalUri;
     var $dwDns;
     var $dwRouter;
     var $aStaticRoutes;
@@ -175,6 +177,12 @@ class DhcpServer extends Subscribable implements IUnblockable {
         }
         if ($this->szDomain !== null) {
             $szConfig .= "opt domain " . $this->szDomain . "\n";
+        }
+        if ($this->szWpadUrl !== null) {
+            $szConfig .= "opt wpad " . $this->szWpadUrl . "\n";
+        }
+        if ($this->szCaptivePortalUri !== null) {
+            $szConfig .= "opt 114 " . bin2hex($this->szCaptivePortalUri) . "\n";
         }
         $szConfig .= "opt lease " . (($this->dwLeaseTime === null) ? "864000" : strval($this->dwLeaseTime)) . "\n";
 
