@@ -297,6 +297,9 @@ _skip:
                 $this->PrintQrCode($szUrl);
             } else {
                 if ($oJson->flagged === "FLAGGED") {
+                    if (isset($oJson->ip) && $oJson->ip !== null) {
+                        printf("[i] validation server was contacted from IP: %s\n", $oJson->ip);
+                    }
                     if ($this->bDirectTrafficDetected) {
                         ScriptEngine::GetInstance()->SetErrstr("[!] direct traffic detected");
                         // $this->EnterVulnerableState();
