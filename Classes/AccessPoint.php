@@ -203,6 +203,7 @@ _error:
             $this->oCaptivePortalServer->szBindAddr = MiscNet::DwordToIpv4String($this->dwIpv4Address);
             $this->oCaptivePortalServer->szPortalPage = $this->szCaptivePortalPage;
             $this->oCaptivePortalServer->szRedirectUrl = $this->szCaptivePortalRedirect;
+            $this->oCaptivePortalServer->szExternalPortalUrl = $this->szDhcp4CaptivePortalUri;
             $this->oCaptivePortalServer->Subscribe("portal_up", $this, "Stage1c_OnPortalUp", null, true);
             $this->oCaptivePortalServer->Subscribe("portal_err", $this, "Stage1c_OnPortalErr", null, true);
             $this->oCaptivePortalServer->Subscribe("client_authorized", $this, "OnClientAuthorized", null, false);
@@ -249,10 +250,11 @@ _error:
             } else if ($this->szDhcp4WpadProxy !== null) {
                 $this->oDhcp4->szWpadUrl = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/wpad.dat";
             }
-            if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
-                if ($this->szDhcp4CaptivePortalUri !== null) {
-                    $this->oDhcp4->szCaptivePortalUri = $this->szDhcp4CaptivePortalUri;
-                } else if ($this->szCaptivePortalRedirect !== null) {
+            if ($this->szDhcp4CaptivePortalUri !== null) {
+                /* external captive portal url: send opt 114 directly, no local server needed */
+                $this->oDhcp4->szCaptivePortalUri = $this->szDhcp4CaptivePortalUri;
+            } else if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
+                if ($this->szCaptivePortalRedirect !== null) {
                     $this->oDhcp4->szCaptivePortalUri = $this->szCaptivePortalRedirect;
                 } else {
                     $this->oDhcp4->szCaptivePortalUri = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/";

@@ -12,6 +12,7 @@ class CaptivePortalServer extends Subscribable implements IUnblockable {
     var $szBindAddr;
     var $szPortalPage;
     var $szRedirectUrl;
+    var $szExternalPortalUrl;  /* wanneer gezet: OS-detectie redirect naar deze URL i.p.v. szBindAddr */
     var $szTmpDir;
     var $hProcess;
     var $hProcessStdout;
@@ -91,7 +92,7 @@ class CaptivePortalServer extends Subscribable implements IUnblockable {
         }
 
         $szRedirectUrl = ($this->szRedirectUrl !== null) ? $this->szRedirectUrl : "https://www.youtube.com/@Roelox";
-        $szPortalUrl = "http://" . $this->szBindAddr . "/";
+        $szPortalUrl = ($this->szExternalPortalUrl !== null) ? $this->szExternalPortalUrl : "http://" . $this->szBindAddr . "/";
 
         $szRouterContent = <<<'ROUTER'
 <?php

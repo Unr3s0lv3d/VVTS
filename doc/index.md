@@ -2,7 +2,17 @@
 
 Welcome to the _VVTS (VPN Vulnerability Testing Suite)_ documentation. This contains all the information to get you started with VVTS in order to validate a particular VPN client/OS combination against a number of known attacks, and how to quickly describe new attacks/variants to the framework in order for them to be evaluated.
 
+## Funding
+
+This project is funded through [VPN Fund](https://nlnet.nl/thema/VPNFund.html), a fund established by [NLnet](https://nlnet.nl). Learn more at the [NLnet project page](https://nlnet.nl/project/VPN-vulnerabilitytesting).
+
+[<img src="https://nlnet.nl/logo/banner.png" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
+
+
 ## Features
+
+VVTS is a tool that allows one to evaluate susceptibility of a VPN client to a wide variety of attacks. It does so by configuring and bringing up the attack infrastructure, in the form of a wireless access point, including the necessary services, such as DHCP, DNS, Router Advertisements and IPv6 to IPv4 address translation, and providing additional domain-specific functionality to the user such as ARP spoofing and traffic redirection. Subsequently, a victim device connects to said wireless access point, establishes a VPN connection, and retrieves a URL reported by VVTS in a QR code. Finally, VVTS monitors traffic in order to determine and report whether the URL was retrieved directly or through the VPN tunnel, indicating a successful or unsuccessful attack, respectively.
+
 
 VVTS uses a _state machine_ in order to describe an attack. The notation was chosen since it allow for all relevant settings to be contained within a single concise file, abstracting away details not relevant for the attack, while simultaneously maintaining the flexibilty to describe all network-based attacks currently found in public literature. The notation itself is described [here](notation.md), although it should quickly become obvious from the [examples](https://github.com/MidnightBlueLabs/VVTS/blob/main/state_machines). Currently, definition files for the following attacks exist:
 * LocalNet[^mathy], for which there is a definition file for [IPv4](https://github.com/MidnightBlueLabs/VVTS/blob/main/state_machines/localnet.stm) and another for [IPv6](https://github.com/MidnightBlueLabs/VVTS/blob/main/state_machines/localnet_ipv6.stm).
