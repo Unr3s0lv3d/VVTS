@@ -1,0 +1,41 @@
+(*
+ * Captive portal state machine met RFC 8908 ondersteuning
+ *
+ * DHCP optie 114 wijst naar de externe VVTS Server (HTTPS, geldig certificaat).
+ * De externe server handelt twee dingen af op dezelfde URL:
+ *   - RFC 8908 JSON (Accept: application/captive+json) -> {"captive": true, "user-portal-url": "https://roel.surfcloud.nl/"}
+ *   - HTML portal pagina (gewone browser request) -> de captive portal pagina zelf
+ *
+ * Flow:
+ *   1. Client verbindt en ontvangt via DHCP opt 114: https://roel.surfcloud.nl/
+ *   2. OS vraagt RFC 8908 JSON op (geldig cert, Android accepteert dit)
+ *   3. Externe server antwoordt: {"captive": true, "user-portal-url": "https://roel.surfcloud.nl/"}
+ *   4. OS opent https://roel.surfcloud.nl/ in de browser -> HTML portal pagina
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  miscnet.masquerade("true");
+
+  ap = accesspoint();
+  ap.wifi_interface = "wlan0";
+  ap.ipv4_addr = "192.168.60.1";
+  ap.ipv4_netmask = "255.255.255.0";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_dns = "192.168.60.1";
+  ap.dhcp4_router = "192.168.60.1";
+  ap.dns_enable = "true";
+  ap.captive_portal_mode = "dns_detect";
+
+  (* Externe HTTPS server: handelt RFC 8908 en portal pagina af op dezelfde URL *)
+  ap.dhcp4_captive_portal_uri = "https://roel.surfcloud.nl/";
+
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("Access point kon niet worden opgestart: ", errstr);
+
+state ap_up:
+  print("Access point is actief.");
+  print("DHCP opt 114 + RFC 8908 + portal pagina: https://roel.surfcloud.nl/");
+  print("Druk Ctrl+C om te stoppen.");

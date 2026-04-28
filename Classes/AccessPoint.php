@@ -251,14 +251,12 @@ _error:
                 $this->oDhcp4->szWpadUrl = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/wpad.dat";
             }
             if ($this->szDhcp4CaptivePortalUri !== null) {
-                /* external captive portal url: send opt 114 directly, no local server needed */
+                /* Externe captive portal API URL — wordt direct als opt 114 verstuurd.
+                 * De externe server handelt zowel RFC 8908 JSON als de HTML portal pagina af. */
                 $this->oDhcp4->szCaptivePortalUri = $this->szDhcp4CaptivePortalUri;
             } else if ($this->szCaptivePortalMode !== null && $this->dwIpv4Address !== null) {
-                if ($this->szCaptivePortalRedirect !== null) {
-                    $this->oDhcp4->szCaptivePortalUri = $this->szCaptivePortalRedirect;
-                } else {
-                    $this->oDhcp4->szCaptivePortalUri = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/";
-                }
+                /* advertise local API endpoint via opt 114; RFC 8908 JSON contains the actual portal url */
+                $this->oDhcp4->szCaptivePortalUri = "http://" . MiscNet::DwordToIpv4String($this->dwIpv4Address) . "/";
             }
             $this->oDhcp4->Subscribe("dhcp4_up", $this, "Stage2_OnDhcp4Up", null, true);
             $this->oDhcp4->Subscribe("dhcp4_err", $this, "Stage2_OnDhcp4Err", null, true);
@@ -424,9 +422,16 @@ _error:
                     $this->oDnsMitm->szCatchAllAddress = $szPortalIp;
                 } else {
                     /* dns_detect: only spoof captive portal detection domains */
+                    /* windows */
                     $this->oDnsMitm->SetOverride("www.msftconnecttest.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("ipv6.msftconnecttest.com", $szPortalIp);
+                    /* android */
                     $this->oDnsMitm->SetOverride("connectivitycheck.gstatic.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("connectivitycheck.android.com", $szPortalIp);
+                    /* apple */
                     $this->oDnsMitm->SetOverride("captive.apple.com", $szPortalIp);
+                    $this->oDnsMitm->SetOverride("www.apple.com", $szPortalIp);
+                    /* linux */
                     $this->oDnsMitm->SetOverride("nmcheck.gnome.org", $szPortalIp);
                 }
             }

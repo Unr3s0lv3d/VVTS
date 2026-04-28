@@ -78,6 +78,7 @@ class CaptivePortalServer extends Subscribable implements IUnblockable {
         if ($this->szTmpDir !== null) {
             @unlink($this->szTmpDir . "/router.php");
             @unlink($this->szTmpDir . "/portal.html");
+            @unlink($this->szTmpDir . "/authorized_ips.txt");
             @rmdir($this->szTmpDir);
             $this->szTmpDir = null;
         }
@@ -91,7 +92,7 @@ class CaptivePortalServer extends Subscribable implements IUnblockable {
             return;
         }
 
-        $szRedirectUrl = ($this->szRedirectUrl !== null) ? $this->szRedirectUrl : "https://www.youtube.com/@Roelox";
+        $szRedirectUrl = ($this->szRedirectUrl !== null) ? $this->szRedirectUrl : "https://roel.surfcloud.nl";
         $szPortalUrl = ($this->szExternalPortalUrl !== null) ? $this->szExternalPortalUrl : "http://" . $this->szBindAddr . "/";
 
         $szRouterContent = <<<'ROUTER'
@@ -99,8 +100,24 @@ class CaptivePortalServer extends Subscribable implements IUnblockable {
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $clientIp = $_SERVER['REMOTE_ADDR'];
+$szAuthorizedFile = 'AUTHORIZED_FILE';
+
+/* RFC 8908: als het OS vraagt om application/captive+json, geef JSON terug */
+$szAccept = $_SERVER['HTTP_ACCEPT'] ?? '';
+if (strpos($szAccept, 'application/captive+json') !== false) {
+    $aAuthorizedIps = file_exists($szAuthorizedFile) ? file($szAuthorizedFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : [];
+    $bCaptive = !in_array($clientIp, $aAuthorizedIps);
+    header('Content-Type: application/captive+json');
+    $aResponse = ['captive' => $bCaptive];
+    if ($bCaptive) {
+        $aResponse['user-portal-url'] = 'PORTAL_URL';
+    }
+    echo json_encode($aResponse);
+    exit;
+}
 
 if ($method === 'POST' && $uri === '/authorize') {
+    file_put_contents($szAuthorizedFile, $clientIp . "\n", FILE_APPEND | LOCK_EX);
     file_put_contents('php://stderr', "authorized:" . $clientIp . "\n");
     http_response_code(302);
     header('Location: REDIRECT_URL');
@@ -132,6 +149,7 @@ header('Content-Type: text/html');
 readfile(__DIR__ . '/portal.html');
 ROUTER;
 
+        $szRouterContent = str_replace('AUTHORIZED_FILE', $this->szTmpDir . '/authorized_ips.txt', $szRouterContent);
         $szRouterContent = str_replace('REDIRECT_URL', $szRedirectUrl, $szRouterContent);
         $szRouterContent = str_replace('PORTAL_URL', $szPortalUrl, $szRouterContent);
 
