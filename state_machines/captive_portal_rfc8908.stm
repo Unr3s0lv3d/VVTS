@@ -27,7 +27,7 @@ state init begin:
   ap.dns_enable = "true";
   ap.captive_portal_mode = "dns_detect";
 
-  (* Externe HTTPS server: handelt RFC 8908 en portal pagina af op dezelfde URL *)
+  
   ap.dhcp4_captive_portal_uri = "https://roel.surfcloud.nl/";
 
   ap.bring_up(ap_up, ap_err);

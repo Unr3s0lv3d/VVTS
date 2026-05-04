@@ -58,6 +58,7 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
     var $szDhcp4Domain;
     var $aDhcp4StaticRoutes;
     var $dwDhcp4Netmask;
+    var $dwDhcp4StaticRouteOption;
 
     var $bSlaacEnable;
     var $abSlaacDns;
@@ -92,6 +93,7 @@ class AccessPoint implements IUnblockable, IScriptOpaque {
         $this->aSlaacStaticRoutes = [];
         $this->aabSlaacNeighbors = [];
         $this->aTransitions = [];
+        $this->dwDhcp4StaticRouteOption = 121;
 
         MainLoop::GetInstance()->RegisterObject($this);
     }
@@ -245,6 +247,7 @@ _error:
                 $this->oDhcp4->SetStaticRoute($oRoute->dwAddress, $oRoute->dwNetmask, $oRoute->dwGateway);
             }
             $this->oDhcp4->dwNetmask = $this->dwDhcp4Netmask;
+            $this->oDhcp4->dwStaticRouteOption = $this->dwDhcp4StaticRouteOption;
             if ($this->szDhcp4WpadUrl !== null) {
                 $this->oDhcp4->szWpadUrl = $this->szDhcp4WpadUrl;
             } else if ($this->szDhcp4WpadProxy !== null) {
@@ -935,6 +938,20 @@ _error:
         return new ScriptVoid();
     }
 
+    function StateMachineSet_dhcp4_static_route_option($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("dhcp4_static_route_option must be of type string");
+        }
+
+        if ($oValue->szLiteral === "") {
+            $this->dwDhcp4StaticRouteOption = 121;
+        } else if ($oValue->szLiteral !== "121" && $oValue->szLiteral !== "249") {
+            throw new ScriptInvokeError("dhcp4_static_route_option must be \"121\" or \"249\", got: " . $oValue->szLiteral);
+        } else {
+            $this->dwDhcp4StaticRouteOption = intval($oValue->szLiteral);
+        }
+    }
+
     function StateMachineSet_dhcp4_netmask($oValue) {
         if (!($oValue instanceof ScriptStringLiteral)) {
             throw new ScriptInvokeError("dhcp4_netmask must be of type string");
@@ -1091,6 +1108,7 @@ _error:
             $this->oDhcp4->SetStaticRoute($oRoute->dwAddress, $oRoute->dwNetmask, $oRoute->dwGateway);
         }
         $this->oDhcp4->dwNetmask = $this->dwDhcp4Netmask;
+        $this->oDhcp4->dwStaticRouteOption = $this->dwDhcp4StaticRouteOption;
         if ($this->szDhcp4WpadUrl !== null) {
             $this->oDhcp4->szWpadUrl = $this->szDhcp4WpadUrl;
         } else if ($this->szDhcp4WpadProxy !== null) {

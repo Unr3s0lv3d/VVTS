@@ -11,7 +11,7 @@ ap = accesspoint();
 Sets up the access point in accordance to the values set in the object's properties. The state machine enters state `state_up` if successful, and `state_err` in case of an error. At least `wifi_interface` and `ipv4_addr` or `ipv6_addr` must be set in order to set up the access point. A call to `bring_up` should occur _after_ all properties are set.
 
 ### `dhcp4_static_route(ip_addr, netmask, gateway)`
-Instructs the DHCP4 server to provide a classless static route (option 121). All three arguments are strings containing an IPv4 address. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+Instructs the DHCP4 server to provide a classless static route. By default this uses DHCP option 121. The `dhcp4_static_route_option` property can be set to `249` to use the Microsoft classless static route option instead. All three arguments are strings containing an IPv4 address. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
 
 ### `dhcp4_clear_static_routes()`
 Clears the list of DHCP4 classless static routes to be provided by the DHCP4 server. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
@@ -89,6 +89,36 @@ A string containing the IPv4 address of the DNS server to be sent to DHCP4 clien
 
 ### `dhcp4_router`
 A string containing the IPv4 address of the default route to be sent to DHCP4 clients. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+
+### `dhcp4_static_route_option`
+A string containing the DHCP option number used for routes configured through `dhcp4_static_route()`. Valid values are `121` and `249`. The default is `121`. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+
+### `dhcp4_netmask`
+A string containing the IPv4 netmask to be sent to DHCP4 clients through the DHCP subnet option. If unset, the netmask of the access point interface is used. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+
+### `dhcp4_wpad_proxy`
+A string containing the default proxy address to advertise through WPAD, in `host:port` format. When this property is set and `dhcp4_wpad_url` is not set, VVTS starts a local WPAD server on the access point IPv4 address and advertises `http://<access-point-ip>/wpad.dat` through DHCP. Set before invoking `bring_up()`. If no local WPAD server is running yet, setting this property and invoking `dhcp4_reload()` starts one; if the local WPAD server is already running, the generated PAC file is not regenerated.
+
+### `dhcp4_wpad_direct`
+A string containing hosts that should bypass the WPAD proxy and use `DIRECT` in the generated PAC file. Entries are separated with semicolons (`;`) and may contain shell-style wildcard patterns such as `*.local`. This property is only used by the local WPAD server started through `dhcp4_wpad_proxy`. Set before invoking `bring_up()`, or before the first `dhcp4_reload()` that starts the local WPAD server.
+
+### `dhcp4_wpad_proxy_hosts`
+A string containing host-specific proxy overrides for the generated PAC file. Entries are separated with semicolons (`;`) and each entry must use `host=proxyhost:port` format, for example `example.com=192.168.60.1:8080;*.corp=192.168.60.2:8080`. This property is only used by the local WPAD server started through `dhcp4_wpad_proxy`. Set before invoking `bring_up()`, or before the first `dhcp4_reload()` that starts the local WPAD server.
+
+### `dhcp4_wpad_url`
+A string containing an explicit `http://` or `https://` PAC file URL to advertise through DHCP WPAD. When this property is set, VVTS does not start the local WPAD server for `dhcp4_wpad_proxy`; the configured URL is advertised directly instead. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+
+### `captive_portal_mode`
+A string determining whether VVTS should start a captive portal server and spoof captive portal detection traffic. Valid values are `dns_detect` and `dns_all`. In `dns_detect` mode, VVTS only overrides known OS captive portal detection hostnames. In `dns_all` mode, VVTS sends all DNS A queries to the captive portal address and installs temporary firewall rules that only allow DHCP, DNS and HTTP until a client is authorized. Set before invoking `bring_up()`.
+
+### `captive_portal_page`
+A string containing the path to a custom HTML page for the captive portal. If unset or the file does not exist, VVTS uses a built-in minimal portal page. Set before invoking `bring_up()`.
+
+### `captive_portal_redirect`
+A string containing an `http://` or `https://` URL to redirect the client to after it submits the captive portal authorization form. If unset, the captive portal server redirects to `https://roel.surfcloud.nl`. Set before invoking `bring_up()`.
+
+### `dhcp4_captive_portal_uri`
+A string containing an `http://` or `https://` URL to advertise through DHCP option 114 for captive portal discovery. If unset and `captive_portal_mode` is enabled, VVTS advertises the local captive portal API endpoint on the access point IPv4 address. Set before invoking `bring_up()`.
 
 ### `slaac_enable`
 A string containing a Boolean value determining whether a SLAAC advertiser should be set up on the access point that is to be created. Changes take effect after invoking `bring_up()` or `slaac_reload()` on the object.

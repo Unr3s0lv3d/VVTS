@@ -24,10 +24,12 @@ class DhcpServer extends Subscribable implements IUnblockable {
     var $szCaptivePortalUri;
     var $dwDns;
     var $dwRouter;
+    var $dwStaticRouteOption;
     var $aStaticRoutes;
 
     function __construct() {
         parent::__construct();
+        $this->dwStaticRouteOption = 121;
         $this->aStaticRoutes = [];
 
         MainLoop::GetInstance()->RegisterObject($this);
@@ -156,24 +158,24 @@ class DhcpServer extends Subscribable implements IUnblockable {
             $szConfig .= "opt router " . MiscNet::DwordToIpv4String($this->dwRouter) . "\n";
         }
         if (count($this->aStaticRoutes) != 0) {
-            $szOption121Value = "";
+            $szStaticRouteValue = "";
             foreach($this->aStaticRoutes as $oRoute) {
                 $dwPrefixLen = MiscNet::NetmaskToPrefixLength($oRoute->dwNetmask);
                 $dwByteLen = ($dwPrefixLen + 7) >> 3;
-                $szOption121Value .= sprintf("%02x", $dwPrefixLen);
+                $szStaticRouteValue .= sprintf("%02x", $dwPrefixLen);
                 for($i = 0; $i < $dwByteLen; $i++) {
                     $bByteValue = ($oRoute->dwAddress >> (24 - ($i << 3))) & 0xff;
                     if (($dwPrefixLen >> 3) == $i) {
                         $bByteValue &= (0xff00 >> ($dwPrefixLen & 7));
                     }
-                    $szOption121Value .= sprintf("%02x", $bByteValue);
+                    $szStaticRouteValue .= sprintf("%02x", $bByteValue);
                 }
-                $szOption121Value .= sprintf("%02x", ($oRoute->dwGateway >> 24) & 0xff);
-                $szOption121Value .= sprintf("%02x", ($oRoute->dwGateway >> 16) & 0xff);
-                $szOption121Value .= sprintf("%02x", ($oRoute->dwGateway >> 8) & 0xff);
-                $szOption121Value .= sprintf("%02x", $oRoute->dwGateway & 0xff);
+                $szStaticRouteValue .= sprintf("%02x", ($oRoute->dwGateway >> 24) & 0xff);
+                $szStaticRouteValue .= sprintf("%02x", ($oRoute->dwGateway >> 16) & 0xff);
+                $szStaticRouteValue .= sprintf("%02x", ($oRoute->dwGateway >> 8) & 0xff);
+                $szStaticRouteValue .= sprintf("%02x", $oRoute->dwGateway & 0xff);
             }
-            $szConfig .= "opt 121 " . $szOption121Value . "\n";
+            $szConfig .= "opt " . intval($this->dwStaticRouteOption) . " " . $szStaticRouteValue . "\n";
         }
         if ($this->szDomain !== null) {
             $szConfig .= "opt domain " . $this->szDomain . "\n";
