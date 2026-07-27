@@ -21,8 +21,6 @@ class Nat64 extends Subscribable implements IUnblockable {
 
     function __construct() {
         parent::__construct();
-        $this->aStaticRoutes = [];
-
         MainLoop::GetInstance()->RegisterObject($this);
     }
 
@@ -110,7 +108,6 @@ class Nat64 extends Subscribable implements IUnblockable {
         if ($this->hProcess != null) {
             $aStatus = proc_get_status($this->hProcess);
             if (isset($aStatus["running"]) && $aStatus["running"]) {
-                // printf("[i] killing %d\n", $aStatus["pid"]);
                 posix_kill($aStatus["pid"], SIGTERM);
             }
             proc_close($this->hProcess);
@@ -175,7 +172,6 @@ class Nat64 extends Subscribable implements IUnblockable {
         ];
 
         $this->szTmpfile = tempnam(sys_get_temp_dir(), "tayga_");
-        // var_dump($szConfig);
         file_put_contents($this->szTmpfile, $szConfig);
 
         shell_exec(escapeshellarg(dirname(__FILE__) . "/../external/tayga-0.9.5/tayga") . " -d --config " . escapeshellarg($this->szTmpfile) . " --mktun 2>/dev/null");

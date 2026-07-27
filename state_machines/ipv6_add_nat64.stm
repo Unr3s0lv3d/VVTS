@@ -15,7 +15,7 @@ state init begin:
   miscnet = miscnet();
   my_ip_v6 = "2a00:1337:1:1::1";
   prefix_len_v6 = "64";
-  target_ip = miscnet.lookup_ipv4("vvts.midnightblue.nl");
+  target_ip = miscnet.lookup_ipv4("yourserver.com");
 
   (* perform nat on the interface where our default gateway is at *)
   miscnet.masquerade("true");
@@ -43,7 +43,7 @@ state init begin:
   ap.dns_set_override("eduvpn.uran.ua", endpoint_ua);
 
   (* use dns spoofing to force validation server connection via ipv4 *)
-  ap.dns_set_override("vvts.midnightblue.nl", target_ip);
+  ap.dns_set_override("yourserver.com", target_ip);
 
   ap.ipv6_addr = my_ip_v6;
   ap.ipv6_prefixlen = prefix_len_v6;
@@ -85,7 +85,7 @@ state vpn_detected:
 
 state slaac_renew:
   (* client has received nat64 route announcement *)
-  mon.validation_server = "https://vvts.midnightblue.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 
 state vpn_safe:

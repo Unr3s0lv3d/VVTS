@@ -8,6 +8,9 @@ use \VVTS\Classes\MainLoop;
 use \VVTS\Classes\MiscNet;
 use \VVTS\Classes\AccessPoint;
 use \VVTS\Classes\TrafficMonitor;
+use \VVTS\Classes\SslStrip;
+use \VVTS\Classes\NdpRedirect;
+use \VVTS\Classes\RemoteProxy;
 use \VVTS\Types\ScriptVoid;
 use \VVTS\Types\ScriptInvokeError;
 use \VVTS\Types\ScriptStringLiteral;
@@ -47,6 +50,15 @@ class ScriptEngine {
         });
         $this->RegisterBuiltin("trafficmonitor", function() {
             return new TrafficMonitor();
+        });
+        $this->RegisterBuiltin("sslstrip", function() {
+            return new SslStrip();
+        });
+        $this->RegisterBuiltin("ndp_redirect", function() {
+            return new NdpRedirect();
+        });
+        $this->RegisterBuiltin("remote_proxy", function() {
+            return new RemoteProxy();
         });
     }
 
@@ -138,7 +150,6 @@ class ScriptEngine {
                 if (isset($this->aVariables[$szVariable])) {
                     if ($this->aVariables[$szVariable] instanceof IScriptOpaque) {
                         if (method_exists($this->aVariables[$szVariable], "StateMachineGet_" . $szMember)) {
-                            printf("[i] StateMachineGet_%s()\n", $szMember);
                             $oEvaluated = call_user_func([$this->aVariables[$szVariable], "StateMachineGet_" . $szMember]);
                             if (!(
                                 $oEvaluated instanceof IScriptOpaque ||
@@ -169,8 +180,6 @@ class ScriptEngine {
 _done_read:
         } else if ($oValue instanceof ScriptInvokeBuiltin) {
 
-            printf("[i] Evaluating builtin invocation \"%s\"\n", $oValue->ToString());
-
             if ($oValue->oLabel->szVariable !== null) {
                 $szVariable = $oValue->oLabel->szVariable;
                 $szMethod = $oValue->oLabel->szLabel;
@@ -178,7 +187,6 @@ _done_read:
                 if (isset($this->aVariables[$szVariable])) {
                     if ($this->aVariables[$szVariable] instanceof IScriptOpaque) {
                         if (method_exists($this->aVariables[$szVariable], "StateMachineInvoke_" . $szMethod)) {
-                            printf("[i] StateMachineInvoke_%s(...)\n", $szMethod);
                             $aArguments = [];
                             foreach($oValue->aArguments as $oArgument) {
                                 array_push($aArguments, $this->EvalValue($oArgument));
@@ -225,7 +233,6 @@ _done_invoke:
     }
 
     function EvalStatement($oStatement) {
-        printf("[i] Evaluating statement \"%s\"\n", $oStatement->ToString());
         if ($oStatement instanceof ScriptAssignment) {
             $oRvalue = $this->EvalValue($oStatement->oRvalue);
 
@@ -240,7 +247,6 @@ _done_invoke:
                 if (isset($this->aVariables[$szVariable])) {
                     if ($this->aVariables[$szVariable] instanceof IScriptOpaque) {
                         if (method_exists($this->aVariables[$szVariable], "StateMachineSet_" . $szMember)) {
-                            printf("[i] StateMachineSet_%s()\n", $szMember);
                             call_user_func([$this->aVariables[$szVariable], "StateMachineSet_" . $szMember], $oRvalue);
                             goto _done_write;
                         } else {

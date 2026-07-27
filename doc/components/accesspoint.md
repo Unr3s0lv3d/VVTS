@@ -96,29 +96,23 @@ A string containing the DHCP option number used for routes configured through `d
 ### `dhcp4_netmask`
 A string containing the IPv4 netmask to be sent to DHCP4 clients through the DHCP subnet option. If unset, the netmask of the access point interface is used. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
 
-### `dhcp4_wpad_proxy`
-A string containing the default proxy address to advertise through WPAD, in `host:port` format. When this property is set and `dhcp4_wpad_url` is not set, VVTS starts a local WPAD server on the access point IPv4 address and advertises `http://<access-point-ip>/wpad.dat` through DHCP. Set before invoking `bring_up()`. If no local WPAD server is running yet, setting this property and invoking `dhcp4_reload()` starts one; if the local WPAD server is already running, the generated PAC file is not regenerated.
-
-### `dhcp4_wpad_direct`
-A string containing hosts that should bypass the WPAD proxy and use `DIRECT` in the generated PAC file. Entries are separated with semicolons (`;`) and may contain shell-style wildcard patterns such as `*.local`. This property is only used by the local WPAD server started through `dhcp4_wpad_proxy`. Set before invoking `bring_up()`, or before the first `dhcp4_reload()` that starts the local WPAD server.
-
-### `dhcp4_wpad_proxy_hosts`
-A string containing host-specific proxy overrides for the generated PAC file. Entries are separated with semicolons (`;`) and each entry must use `host=proxyhost:port` format, for example `example.com=192.168.60.1:8080;*.corp=192.168.60.2:8080`. This property is only used by the local WPAD server started through `dhcp4_wpad_proxy`. Set before invoking `bring_up()`, or before the first `dhcp4_reload()` that starts the local WPAD server.
-
 ### `dhcp4_wpad_url`
-A string containing an explicit `http://` or `https://` PAC file URL to advertise through DHCP WPAD. When this property is set, VVTS does not start the local WPAD server for `dhcp4_wpad_proxy`; the configured URL is advertised directly instead. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
+A string containing an `http://` or `https://` PAC file URL to advertise through DHCP option 252 (WPAD). The configured URL is advertised directly to DHCP clients. Changes take effect after invoking `bring_up()` or `dhcp4_reload()` on the object.
 
 ### `captive_portal_mode`
 A string determining whether VVTS should start a captive portal server and spoof captive portal detection traffic. Valid values are `dns_detect` and `dns_all`. In `dns_detect` mode, VVTS only overrides known OS captive portal detection hostnames. In `dns_all` mode, VVTS sends all DNS A queries to the captive portal address and installs temporary firewall rules that only allow DHCP, DNS and HTTP until a client is authorized. Set before invoking `bring_up()`.
 
-### `captive_portal_page`
-A string containing the path to a custom HTML page for the captive portal. If unset or the file does not exist, VVTS uses a built-in minimal portal page. Set before invoking `bring_up()`.
-
-### `captive_portal_redirect`
-A string containing an `http://` or `https://` URL to redirect the client to after it submits the captive portal authorization form. If unset, the captive portal server redirects to `https://roel.surfcloud.nl`. Set before invoking `bring_up()`.
-
-### `dhcp4_captive_portal_uri`
+### `captive_portal_api`
 A string containing an `http://` or `https://` URL to advertise through DHCP option 114 for captive portal discovery. If unset and `captive_portal_mode` is enabled, VVTS advertises the local captive portal API endpoint on the access point IPv4 address. Set before invoking `bring_up()`.
+
+### `captive_portal_allow_https`
+A semicolon-separated list of hostnames that should remain reachable over HTTPS (port 443) when `captive_portal_mode` is set to `dns_all`. For each hostname, VVTS resolves the IP address, adds an iptables rule allowing traffic to that IP on port 443, and configures a DNS override so the real IP is returned instead of the spoofed access point address. Set before invoking `bring_up()`.
+
+### `captive_portal_allow_http`
+A semicolon-separated list of hostnames that should remain reachable over HTTP (port 80) when `captive_portal_mode` is set to `dns_all`. Works the same as `captive_portal_allow_https` but for port 80. If a hostname appears in both `captive_portal_allow_https` and `captive_portal_allow_http`, the already-resolved IP from the HTTPS list is reused to avoid DNS inconsistencies. Set before invoking `bring_up()`.
+
+### `captive_portal_user_url`
+A string containing an `http://` or `https://` URL that the external server should return as the `user-portal-url` in its RFC 8908 JSON response. When set, VVTS sends a configure request to the server (derived from `captive_portal_api`) during `bring_up()` and an unconfigure request during teardown. Requires the `server_secret` variable to be set. Set before invoking `bring_up()`.
 
 ### `slaac_enable`
 A string containing a Boolean value determining whether a SLAAC advertiser should be set up on the access point that is to be created. Changes take effect after invoking `bring_up()` or `slaac_reload()` on the object.

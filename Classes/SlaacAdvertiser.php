@@ -56,7 +56,6 @@ class SlaacAdvertiser extends Subscribable implements IUnblockable {
             $this->Signal("slaac_up");
         }
 
-        // if (strpos($abBuf, "processed an RS") !== false) {
         if (preg_match('/received NA from: ([0-9a-f:]+)$/', $abBuf, $aMatchNa)) {
             $this->Signal("slaac_renew", $aMatchNa[1]);
         }
@@ -74,7 +73,6 @@ class SlaacAdvertiser extends Subscribable implements IUnblockable {
         if ($this->hProcess != null) {
             $aStatus = proc_get_status($this->hProcess);
             if (isset($aStatus["running"]) && $aStatus["running"]) {
-                // printf("[i] killing %d\n", $aStatus["pid"]);
                 posix_kill($aStatus["pid"], SIGTERM);
             }
             proc_close($this->hProcess);
@@ -187,7 +185,6 @@ class SlaacAdvertiser extends Subscribable implements IUnblockable {
         ];
 
         $this->szTmpfile = tempnam(sys_get_temp_dir(), "radvd_");
-        // var_dump($szConfig);
         file_put_contents($this->szTmpfile, $szConfig);
         $this->hProcess = proc_open("exec " . escapeshellarg(dirname(__FILE__) . "/../external/radvd-2.20/radvd") . " -d 3 -m stderr -n -C " . escapeshellarg($this->szTmpfile), $aSpec, $aPipes);
         $this->hProcessStdout = $aPipes[1];

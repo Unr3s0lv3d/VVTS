@@ -16,7 +16,7 @@ state init begin:
   miscnet.masquerade("true");
   prefix_len_v6 = "64";
   (* we want target_ip_v6 to flow outside of the tunnel *)
-  target_ip_v6 = miscnet.lookup_ipv6("v6.phphooligans.nl");
+  target_ip_v6 = miscnet.lookup_ipv6("yourserver.com");
   (* select an ip within the same subnet but not equal to target_ip_v6 *)
   my_ip_v6 = miscnet.subnet_ipv6(target_ip_v6, prefix_len_v6);
 
@@ -31,7 +31,7 @@ state init begin:
   ap.route_to_default = "true";
   (* ap.dhcp4_leasetime = "15"; *)
   ap.dns_enable = "true";
-  ap.dns_set_override("v6.phphooligans.nl", target_ip_v6);
+  ap.dns_set_override("yourserver.com", target_ip_v6);
 
   ap.ipv6_addr = my_ip_v6;
   ap.ipv6_prefixlen = prefix_len_v6;
@@ -75,7 +75,7 @@ state vpn_detected:
   print("[i] Sending Router Advertisement...");
 
 state slaac_renew:
-  mon.validation_server = "https://v6.phphooligans.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 
 state vpn_safe:

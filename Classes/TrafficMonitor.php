@@ -87,7 +87,6 @@ class TrafficMonitor implements IUnblockable, IScriptOpaque {
 
     function Onunblock($hStream) {
         if ($hStream === $this->hProcessStdout) {
-            // printf("fread(2)\n");
             $abLength = fread($this->hProcessStdout, 2);
             if ($abLength === "" || $abLength === false) {
 _process_exit:
@@ -101,22 +100,18 @@ _process_exit:
 
                 ScriptEngine::GetInstance()->SetErrstr("trafficmonitor process exited (interface down?)");
                 $this->Teardown();
-                // $this->EnterErrorState();
                 $this->PerformTransition("error");
                 return;
             }
             $wLength = (ord($abLength[0]) << 8) | ord($abLength[1]);
             $abPacket = "";
             while(strlen($abPacket) !== $wLength) {
-                // printf("fread(%d)\n", $wLength - strlen($abPacket));
                 $abBuf = fread($this->hProcessStdout, $wLength - strlen($abPacket));
                 if ($abBuf === "" || $abBuf === false) {
                     goto _process_exit;
                 }
                 $abPacket .= $abBuf;
             }
-            // printf("trafficmonitor: (len=%d) %s", strlen($abPacket), $abPacket);
-
             if (strlen($abPacket) < 20) {
                 goto _skip;
             }
@@ -156,12 +151,6 @@ _process_exit:
                 goto _skip;
             }
 
-            // printf("version: %d proto: %d src=%s:%d dst=%s:%d (target=%s:%d)\n",
-            //     $bVersion, $bProto,
-            //     ($bVersion === 4) ? MiscNet::DwordToIpv4String($oSrcAddr) : "[".MiscNet::BinaryToIpv6String($oSrcAddr)."]", $wSrcPort,
-            //     ($bVersion === 4) ? MiscNet::DwordToIpv4String($oDstAddr) : "[".MiscNet::BinaryToIpv6String($oDstAddr)."]", $wDstPort,
-            //     $this->aMonitorAddresses[0], $this->wMonitorPort
-            // );
             if (!$this->bDirectTrafficDetected && ($bProto === 6 || $bProto === 17)) {
                 /*
                  * here we detect whether traffic flows directly, outside of the vpn tunnel
@@ -270,7 +259,6 @@ _skip:
 
         ScriptEngine::GetInstance()->SetErrstr("http error: " . $szErrstr);
         $this->Teardown();
-        // $this->EnterErrorState();
         $this->PerformTransition("error");
     }
 
@@ -278,7 +266,6 @@ _skip:
         if ($this->oHttpClient !== null) {
             $this->oHttpClient->CancelAllSubscriptions();
         }
-        // var_dump($szBody);
         $oJson = @json_decode($szBody);
 
         if (is_object($oJson)) {
@@ -295,14 +282,13 @@ _skip:
                 );
                 printf("[i] please visit %s on the victim device\n", $szUrl);
                 $this->PrintQrCode($szUrl);
-            } else {
+            } else if (isset($oJson->flagged)) {
                 if ($oJson->flagged === "FLAGGED") {
                     if (isset($oJson->ip) && $oJson->ip !== null) {
                         printf("[i] validation server was contacted from IP: %s\n", $oJson->ip);
                     }
                     if ($this->bDirectTrafficDetected) {
                         ScriptEngine::GetInstance()->SetErrstr("[!] direct traffic detected");
-                        // $this->EnterVulnerableState();
                         if (count($this->aVpnEndpoints) === 0) {
                             printf("[!] WARNING: no endpoints defined, cannot confirm that vpn traffic has occurred\n");
                         }
@@ -317,13 +303,11 @@ _skip:
                         if (count($this->aVpnEndpoints) === 0) {
                             printf("[!] WARNING: no endpoints defined, cannot confirm that vpn traffic has occurred\n");
                         }
-                        // $this->EnterSafeState();
                         $this->PerformTransition("safe");
                         return;
                     } else {
                         ScriptEngine::GetInstance()->SetErrstr("[-] validation server was contacted through other means than vpn or direct");
                         $this->Teardown();
-                        // $this->EnterErrorState();
                         $this->PerformTransition("error");
                         return;
                     }
@@ -347,7 +331,6 @@ _skip:
         if ($this->hProcess != null) {
             $aStatus = proc_get_status($this->hProcess);
             if (isset($aStatus["running"]) && $aStatus["running"]) {
-                // printf("[i] killing %d\n", $aStatus["pid"]);
                 posix_kill($aStatus["pid"], SIGTERM);
             }
             proc_close($this->hProcess);
@@ -373,10 +356,6 @@ _skip:
     function StateMachineSet_vpn_endpoints($oValue) {
         if (!($oValue instanceof ScriptStringLiteral)) {
             throw new ScriptInvokeError("vpn_endpoints must be of type string");
-        }
-
-        if ($oValue->szLiteral === "") {
-            $this->szValidationServer = null;
         }
 
         $aSplit = explode(';', $oValue->szLiteral);
@@ -417,12 +396,8 @@ _skip:
             throw new ScriptInvokeError("validation_server must be of type string");
         }
 
-        if ($oValue->szLiteral === "") {
-            $this->szValidationServer = null;
-        }
-
         if (!preg_match('/^http(s)?:\/\/(\[[0-9a-f:\.]+\]|[^:@\/\s]+)(?::([0-9]+))?(\/[^?]*)$/', $oValue->szLiteral, $aMatchUrl)) {
-            throw ScriptInvokeError("invalid format for validation_server: " . $oValue->szLiteral);
+            throw new ScriptInvokeError("invalid format for validation_server: " . $oValue->szLiteral);
         }
 
         $this->bMonitorSecure = $aMatchUrl[1] === "s";

@@ -1,0 +1,55 @@
+(*
+ * NDP Redirect state machine
+ * Brings up AP + SLAAC and starts the NDP Redirect module.
+ * Periodically sends Redirects to connected clients.
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  miscnet.masquerade("true");
+
+  ap = accesspoint();
+  ap.wifi_ssid = "Redirect";
+  ap.wifi_interface = "wlan0";
+  ap.ipv6_addr = "2a00:1337:1:1::1";
+  ap.ipv6_prefixlen = "64";
+  ap.slaac_enable = "true";
+  ap.slaac_dns = "2a00:1337:1:1::1";
+  ap.ipv4_addr = "192.168.60.1";
+  ap.ipv4_netmask = "255.255.255.0";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_router = "192.168.60.1";
+  ap.dhcp4_dns = "192.168.60.1";
+  ap.dns_enable = "true";
+  ap.nat64_enable = "true";
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("Failed to bring up access point: ", errstr);
+
+state ap_up:
+  ndp = ndp_redirect();
+  ndp.add_target(miscnet.lookup_ipv6("https://yourserver.com/"));
+  ndp.interval = "10";
+  ndp.bring_up(ndp_ready, ndp_err);
+
+state ndp_err:
+  exit("Failed to bring up NDP Redirect: ", errstr);
+
+state ndp_ready:
+  print("NDP Redirect active. Wireshark filter: icmpv6.type == 137");
+
+  mon = trafficmonitor();
+  mon.interface = ap.ap_interface;
+  mon.validation_server = "https://yourserver.com/";
+  mon.vpn_endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
+  mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
+
+state mon_err:
+  exit("Traffic monitoring error: ", errstr);
+
+state vpn_safe:
+  exit("VPN appears safe: traffic went through the VPN tunnel.");
+
+state vpn_vuln:
+  exit("VPN is vulnerable: traffic leaked outside the tunnel!");

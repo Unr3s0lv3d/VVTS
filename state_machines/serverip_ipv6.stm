@@ -14,15 +14,15 @@ state init begin:
   (* not an IPv6 ULA because android will refuse to connect *)
   my_ip = "2a00:1337:1:1::1";
   (* we want target_ip to flow outside of the tunnel *)
-  target_ip = miscnet.lookup_ipv6("v6.phphooligans.nl");
+  target_ip = miscnet.lookup_ipv6("yourserver.com");
 
   (* perform nat on the interface where our default gateway is at *)
   miscnet.masquerade("true");
   (* blanket redirect all traffic destined for our target to the vpn endpoint *)
-  miscnet.set_redirect("v6.phphooligans.nl", "ams.nl.eduvpn.org"); (* wireguard endpoint *)
-  (* miscnet.set_redirect("v6.phphooligans.nl", "eduvpn.uran.ua"); *) (* openvpn endpoint *)
+  miscnet.set_redirect("yourserver.com", "ams.nl.eduvpn.org"); (* wireguard endpoint *)
+  (* miscnet.set_redirect("yourserver.com", "eduvpn.uran.ua"); *) (* openvpn endpoint *)
   (* make an exception for the vvts server component, which shouldn't be redirected to the vpn endpoint *)
-  miscnet.no_redirect("tcp://v6.phphooligans.nl:8443");
+  miscnet.no_redirect("tcp://yourserver.com");
 
   ap = accesspoint();
   ap.wifi_interface = "wlan0";
@@ -44,10 +44,10 @@ state ap_up:
   mon = trafficmonitor();
   mon.interface = ap.ap_interface;
   (* make sure validation_server resolves to target_ip *)
-  mon.validation_server = "https://v6.phphooligans.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   (* specify vpn endpoints so that the monitor can detect whether vpn traffic occurs *)
   (* due to dns spoofing, the client believes the vpn endpoints to be at the target *)
-  mon.vpn_endpoints = "tcp://v6.phphooligans.nl:443;udp://v6.phphooligans.nl:443;udp://v6.phphooligans.nl:1194";
+  mon.vpn_endpoints = "tcp://yourserver.com:443;udp://yourserver.com:443;udp://yourserver.com:1194";
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 
 state mon_err:

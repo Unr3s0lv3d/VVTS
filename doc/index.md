@@ -46,6 +46,7 @@ In order to get VVTS up and running, the following commands are expected to be a
 * `ip` (`sudo apt install iproute2`)
 * `iptables` (`sudo apt install iptables`)
 * `ip6tables` (`sudo apt install iptables`)
+* `python3` (`sudo apt install python3`) — only required for WPAD attacks in local proxy mode
 
 Furthermore, VVTS has the following dependencies:
 * [PHP QR Code](https://phpqrcode.sourceforge.net/) for QR Code generation.

@@ -1,4 +1,4 @@
-TARGETS := arpresponder trafficmonitor
+TARGETS := arpresponder trafficmonitor ndp_redirect
 
 CC := gcc
 LD := gcc
@@ -16,6 +16,10 @@ arpresponder: common.o arpresponder.o
 	$(STRIP) $@
 
 trafficmonitor: common.o trafficmonitor.o
+	$(LD) $(LDFLAGS) -o $@ $^
+	$(STRIP) $@
+
+ndp_redirect: ndp_redirect.o
 	$(LD) $(LDFLAGS) -o $@ $^
 	$(STRIP) $@
 

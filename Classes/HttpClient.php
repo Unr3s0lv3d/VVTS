@@ -108,7 +108,7 @@ _process_body:
         $this->Teardown();
     }
 
-    function SendRequest($szUri, $dwTimeout) {
+    function SendRequest($szUri, $dwTimeout, $aExtraHeaders = []) {
         if ($this->dwState != STATE_CONNECTED) {
             $this->hSocket = @fsockopen(($this->bSecure ? "tls://" : "") . $this->szHost, $this->wPort);
             if (!is_resource($this->hSocket)) {
@@ -125,6 +125,9 @@ _process_body:
         $szHeaders .= "Host: " . $this->szHost . "\r\n";
         $szHeaders .= "Connection: keep-alive\r\n";
         $szHeaders .= "Keep-Alive: 300\r\n";
+        foreach ($aExtraHeaders as $szHeader) {
+            $szHeaders .= $szHeader . "\r\n";
+        }
         $szHeaders .= "\r\n";
 
         fwrite($this->hSocket, $szHeaders);

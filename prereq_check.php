@@ -12,8 +12,6 @@ if (posix_getuid() != 0) {
     throw new Exception("external/tayga-0.9.5/tayga is missing (forgot to run 'make'?)");
 } else if (!file_exists(dirname(__FILE__) . "/external/phpqrcode/phpqrcode.php")) {
     throw new Exception("external/phpqrcode/phpqrcode.php is missing (forgot to run 'make'?)");
-} else if (!file_exists(dirname(__FILE__) . "/external/phpqrcode/phpqrcode.php")) {
-    throw new Exception("external/phpqrcode/phpqrcode.php is missing (forgot to run 'make'?)");
 } else if (exec("which hostapd", $szOutput, $dwStatus) === false || $dwStatus !== 0) {
     throw new Exception("hostapd is missing on your system (please install)");
 } else if (exec("which iw", $szOutput, $dwStatus) === false || $dwStatus !== 0) {

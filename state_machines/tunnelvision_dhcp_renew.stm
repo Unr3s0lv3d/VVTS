@@ -13,7 +13,7 @@ state init begin:
   (* gateway for static route != my_ip -> client can't just ignore it *)
   route_gw_ip = "192.168.137.2";
   (* we want target_ip to flow outside of the tunnel *)
-  target_ip = miscnet.lookup_ipv4("vvts.midnightblue.nl");
+  target_ip = miscnet.lookup_ipv4("yourserver.com");
 
   (* perform nat on the interface where our default gateway is at *)
   miscnet.masquerade("true");
@@ -41,6 +41,7 @@ state ap_up:
   mon = trafficmonitor();
   mon.interface = ap.ap_interface;
   (* specify vpn endpoints so that the monitor can detect whether vpn traffic occurs *)
+  (* use the IP directly to avoid DNS round-robin mismatch *)
   endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
   endpoints = concat(endpoints, ";udp://ifi2-vpn.guest.eduvpn.no:1194");
   endpoints = concat(endpoints, ";udp://tekno-vpn.guest.eduvpn.no:1194");
@@ -63,7 +64,7 @@ state vpn_detected:
 
 state dhcp_renew:
   (* make sure validation_server resolves to target_ip *)
-  mon.validation_server = "https://vvts.midnightblue.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 
 state mon_err:

@@ -35,7 +35,7 @@ class MainLoop {
     }
 
     function RegisterTimer($oObject, $lpHandler, $lpArgument, $dwMillis) {
-        $dwMillis += intval(microtime(1) * 1000) + $dwMillis;
+        $dwMillis = intval(microtime(1) * 1000) + $dwMillis;
         array_push($this->aRegisteredTimers, new TimerEvent($oObject, $lpHandler, $lpArgument, $dwMillis));
     }
 
@@ -98,14 +98,12 @@ class MainLoop {
                 $dwSoonestTimer === null ? null : ($dwSoonestTimer % 1000) * 1000
             );
 
-            // printf("[i] MainLoop unblock\n");
             if ($dwStatus !== false) {
                 foreach($this->aObjects as $oObject) {
                     $aSockets = $oObject->Sockets();
                     foreach($aSockets as $hSocket) {
                         if (in_array($hSocket, $aRead, true)) {
                             if ($oObject->Onunblock($hSocket) === false) {
-                                // goto _end_error;
                                 $this->bExit = true;
                             }
                         }
@@ -143,7 +141,6 @@ class MainLoop {
             }
         }
 
-        // printf("[i] MainLoop exiting\n");
         foreach($this->aObjects as $oObject) {
             $oObject->Teardown();
         }

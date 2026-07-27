@@ -7,7 +7,7 @@ state init begin:
   miscnet = miscnet();
   netmask = "255.255.255.0";
   my_ip = "192.168.137.1";
-  target_ip = miscnet.lookup_ipv4("roel.surfcloud.nl");
+  target_ip = miscnet.lookup_ipv4("yourserver.com");
 
   miscnet.masquerade("true");
 
@@ -31,8 +31,9 @@ state ap_err:
 state ap_up:
   mon = trafficmonitor();
   mon.interface = ap.ap_interface;
-  mon.validation_server = "https://roel.surfcloud.nl/";
+  mon.validation_server = "https://yourserver.com/";
   endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
+  endpoints = concat(endpoints, ";tcp://145.100.179.3:443");
   mon.vpn_endpoints = endpoints;
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 

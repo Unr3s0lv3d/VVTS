@@ -20,14 +20,12 @@ class DnsMitm extends Subscribable implements IUnblockable {
     var $dwBindAddr;
     var $abBindIpv6Addr;
     var $szCatchAllAddress;
-    var $aAuthorizedIps;
 
     function __construct() {
         parent::__construct();
         $this->aTransactionMap = [];
         $this->aOverridesA = [];
         $this->aOverridesAAAA = [];
-        $this->aAuthorizedIps = [];
 
         MainLoop::GetInstance()->RegisterObject($this);
     }
@@ -84,8 +82,6 @@ class DnsMitm extends Subscribable implements IUnblockable {
             $wClass = (ord($abRequest[$dwOffset]) << 8) | ord($abRequest[$dwOffset+1]);
             $dwOffset += 2;
 
-            // printf ("[i] received DNS %s from %s for %s type=%s class=%s\n", ($wFlags & 0x8000) ? "response" : "request", $szPeer, $szName, ($wType == 1) ? "A" : "unknown", ($wClass == 1) ? "IN" : "unknown");
-
             if ($wType !== 1 && $wType !== 28) {
                 continue;
             }
@@ -110,12 +106,6 @@ class DnsMitm extends Subscribable implements IUnblockable {
         }
 
         if ($szDomainName === null || $wFlags & 0x8000) {
-            return null;
-        }
-
-        /* authorized clients bypass catch-all and pass through to real DNS server */
-        $szPeerIp = strtok($szPeer, ":");
-        if ($this->szCatchAllAddress !== null && in_array($szPeerIp, $this->aAuthorizedIps, true)) {
             return null;
         }
 
@@ -256,7 +246,6 @@ class DnsMitm extends Subscribable implements IUnblockable {
         $wTransactionId = (ord($abBuf[0]) << 8) | ord($abBuf[1]);
 
         if ($hSocket === $this->hListeningSocket || $hSocket === $this->hListeningIpv6Socket) {
-            // printf("[i] incoming dns request\n");
             $abResponse = $this->GenerateResponse($abBuf, $szPeer);
             if ($abResponse !== null) {
                 stream_socket_sendto($hSocket, $abResponse, 0, $szPeer);
@@ -266,7 +255,6 @@ class DnsMitm extends Subscribable implements IUnblockable {
                 stream_socket_sendto($this->hClientSocket, $abBuf, 0, $this->szNextDns . ":53");
             }
         } else {
-            // printf("[i] incoming dns response\n");
             if (!isset($this->aTransactionMap[$wTransactionId])) {
                 printf("[-] incoming DNS response with unknown source\n");
             } else {

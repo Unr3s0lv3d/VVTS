@@ -7,15 +7,13 @@ require_once(dirname(__FILE__) . "/../autoload.php");
 use \VVTS\Classes\MiscNet;
 
 class InterfaceInfo {
-    var $dwFlags;
     var $dwIpAddr;
     var $dwNetmask;
     var $abIpv6Addr;
     var $dwIpv6PrefixLen;
     var $abMacAddress;
 
-    function __construct($dwFlags, $dwIpAddr, $dwNetmask, $abIpv6Addr, $dwIpv6PrefixLen, $abMacAddress) {
-        $this->dwFlags = $dwFlags;
+    function __construct($dwIpAddr, $dwNetmask, $abIpv6Addr, $dwIpv6PrefixLen, $abMacAddress) {
         $this->dwIpAddr = $dwIpAddr;
         $this->dwNetmask = $dwNetmask;
         $this->abIpv6Addr = $abIpv6Addr;
@@ -61,7 +59,6 @@ class InterfaceInfo {
                 chr(hexdec(substr($aMatchMacAddress[1], 15, 2)));
         }
         return new InterfaceInfo(
-            $dwFlags,
             MiscNet::Ipv4StringToDword($szIpAddr),
             MiscNet::Ipv4StringToDword($szNetmask),
             $abIpv6Addr,

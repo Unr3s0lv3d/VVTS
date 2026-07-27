@@ -12,7 +12,7 @@ state init begin:
   miscnet = miscnet();
   netmask = "255.255.255.0";
   (* we want target_ip to flow outside of the tunnel *)
-  (* target_ip = miscnet.lookup_ipv4("vvts.midnightblue.nl"); *)
+  (* target_ip = miscnet.lookup_ipv4("yourserver.com"); *)
   target_ip = "82.165.202.191";
   (* select an ip within the same subnet but not equal to target_ip *)
   (* my_ip = miscnet.subnet_ip(target_ip, netmask); *)
@@ -34,7 +34,7 @@ state init begin:
   (* route all the traffic within target_ip/24 to our default gateway *)
   ap.route_to_default = "true";
   ap.dns_enable = "true";
-  (* ap.dns_set_override("vvts.midnightblue.nl", target_ip); *)
+  (* ap.dns_set_override("yourserver.com", target_ip); *)
   ap.bring_up(ap_up, ap_err);
 
 state ap_err:
@@ -44,7 +44,7 @@ state ap_up:
   mon = trafficmonitor();
   mon.interface = ap.ap_interface;
   (* make sure validation_server resolves to target_ip *)
-  mon.validation_server = "https://vvts.midnightblue.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   (* specify vpn endpoints so that the monitor can detect whether vpn traffic occurs *)
   endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
   endpoints = concat(endpoints, ";udp://ifi2-vpn.guest.eduvpn.no:1194");
@@ -68,7 +68,7 @@ state vpn_detected:
 
 state dhcp_renew:
   (* make sure validation_server resolves to target_ip *)
-  mon.validation_server = "https://vvts.midnightblue.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
 
 state vpn_safe:

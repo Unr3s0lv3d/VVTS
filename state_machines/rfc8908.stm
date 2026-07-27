@@ -1,0 +1,45 @@
+(*
+ * Captive portal state machine with RFC 8908 support
+ *
+ * DHCP option 114 points to the external VVTS Server (HTTPS, valid certificate).
+ * The external server handles two things on the same URL:
+ *   - RFC 8908 JSON (Accept: application/captive+json) -> {"captive": true, "user-portal-url": "https://yourserver.com/"}
+ *   - HTML portal page (regular browser request) -> the captive portal page itself
+ *
+ * Flow:
+ *   1. Client connects and receives via DHCP opt 114: https://yourserver.com/
+ *   2. OS requests RFC 8908 JSON (valid cert, Android accepts this)
+ *   3. External server responds: {"captive": true, "user-portal-url": "https://yourserver.com/"}
+ *   4. OS opens https://yourserver.com/ in the browser -> HTML portal page
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  miscnet.masquerade("true");
+
+  server_secret = "change_this_to_a_long_random_secret";
+
+  ap = accesspoint();
+  ap.wifi_interface = "wlan0";
+  ap.wifi_ssid = "Portal";
+  ap.ipv4_addr = "192.168.60.1";
+  ap.ipv4_netmask = "255.255.255.0";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_dns = "192.168.60.1";
+  ap.dhcp4_router = "192.168.60.1";
+  ap.dns_enable = "true";
+  ap.captive_portal_mode = "dns_detect";
+
+  (* External HTTPS server: handles RFC 8908 and portal page on the same URL *)
+  ap.captive_portal_api = "https://yourserver.com/";
+  ap.captive_portal_user_url = "https://yourserver.com/";
+
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("Failed to bring up access point: ", errstr);
+
+state ap_up:
+  print("Access point is up.");
+  print("DHCP opt 114 + RFC 8908 + portal page: https://yourserver.com/");
+  print("Press Ctrl+C to stop.");

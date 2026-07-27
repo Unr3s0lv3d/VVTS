@@ -149,8 +149,6 @@ class HostApd extends Subscribable implements IUnblockable {
             $this->Teardown();
             return;
         }
-        // printf("hostapd: %s", $abBuf);
-
         if (strpos($abBuf, "Setup of interface done") !== false) {
             printf("[i] hostap setup done\n");
             $this->bIsUp = true;
@@ -159,7 +157,6 @@ class HostApd extends Subscribable implements IUnblockable {
     }
 
     function Teardown() {
-        // printf("hostapd::Teardown()\n");
         if ($this->hProcessStdout != null) {
             fclose($this->hProcessStdout);
             $this->hProcessStdout = null;
@@ -178,7 +175,6 @@ class HostApd extends Subscribable implements IUnblockable {
         }
 
         shell_exec("iw dev " . escapeshellarg($this->szApInterface) . " del 2>/dev/null");
-        // printf("[i] tearing down interface %s\n", $this->szApInterface);
         if ($this->szTmpfile !== null) {
             unlink($this->szTmpfile);
             $this->szTmpfile = null;

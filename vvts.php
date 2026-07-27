@@ -22,7 +22,6 @@ if ($szScript === false) {
 $oMainLoop = MainLoop::GetInstance();
 $oParseCtx = new ScriptParseCtx($szScript);
 $oParsed = ScriptDocument::Parse($oParseCtx);
-// var_dump($oParsed->ToString());
 
 $oEngine = ScriptEngine::GetInstance();
 $oEngine->RegisterScript($oParsed);

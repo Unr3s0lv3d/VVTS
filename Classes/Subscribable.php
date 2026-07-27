@@ -17,19 +17,6 @@ class Subscribable {
         array_push($this->aSubscribers, new SignalSubscriber($szSignal, $oCallbackObj, $szCallbackFunction, $lpCallbackArgument, $bOneShot));
     }
 
-    function CancelSubscription($szSignal, $oCallbackObj, $szCallbackFunction) {
-        foreach($this->aSubscribers as $i => $oSubscriber) {
-            if (
-                $oSubscriber->szSignal === $szSignal &&
-                $oSubscriber->oCallbackObj === $oCallbackObj &&
-                $oSubscriber->sszCallbackFunction === $szCallbackFunction
-            ) {
-                unset($this->aSubscribers[$i]);
-                break;
-            }
-        }
-    }
-
     function CancelAllSubscriptions() {
         $this->aSubscribers = [];
     }

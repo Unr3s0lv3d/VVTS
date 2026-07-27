@@ -78,7 +78,6 @@ class DhcpServer extends Subscribable implements IUnblockable {
         if ($this->hProcess != null) {
             $aStatus = proc_get_status($this->hProcess);
             if (isset($aStatus["running"]) && $aStatus["running"]) {
-                // printf("[i] killing %d\n", $aStatus["pid"]);
                 posix_kill($aStatus["pid"], SIGTERM);
             }
             proc_close($this->hProcess);

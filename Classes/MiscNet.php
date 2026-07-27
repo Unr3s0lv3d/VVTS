@@ -19,9 +19,13 @@ $g_oMiscNet = null;
 class MiscNet implements IUnblockable, IScriptOpaque {
     var $bRestoreForwardEnabled;
     var $bRestoreIpv6ForwardEnabled;
+    var $szLogFile;
+    var $hLogFile;
 
     function __construct() {
         MainLoop::GetInstance()->RegisterObject($this);
+        $this->szLogFile = null;
+        $this->hLogFile = null;
         $this->IptablesReset();
     }
 
@@ -50,6 +54,15 @@ class MiscNet implements IUnblockable, IScriptOpaque {
         }
 
         $this->IptablesReset();
+
+        if ($this->hLogFile !== null) {
+            fwrite($this->hLogFile, "[" . date('Y-m-d H:i:s') . "] === VVTS sessie gestopt ===\n");
+            fflush($this->hLogFile);
+            ob_end_flush();
+            fclose($this->hLogFile);
+            $this->hLogFile = null;
+            $this->szLogFile = null;
+        }
     }
 
     function IptablesReset() {
@@ -193,17 +206,6 @@ class MiscNet implements IUnblockable, IScriptOpaque {
         }
 
         return $szAddrStr;
-    }
-
-    static function Nat64ToIpv4($abNat64Addr) {
-        if (!is_string($abNat64Addr) || strlen($abNat64Addr) !== 16) {
-            return false;
-        }
-        /* check 64:ff9b/96 prefix */
-        if (substr($abNat64Addr, 0, 12) === "\x00\x64\xff\x9b\x00\x00\x00\x00\x00\x00\x00\x00") {
-            return (ord($abNat64Addr[12]) << 24) | (ord($abNat64Addr[13]) << 16) | (ord($abNat64Addr[14]) << 8) | ord($abNat64Addr[15]);
-        }
-        return false;
     }
 
     static function Ipv4ToNat64($dwIpv4Addr) {
@@ -357,7 +359,7 @@ class MiscNet implements IUnblockable, IScriptOpaque {
                 if (strpos($aMatchSubnet[1], '/') !== false) {
                     list ($szSubnet, $szNetmaskBits) = explode('/', $aMatchSubnet[1], 2);
                     $dwSubnet = MiscNet::Ipv4StringToDword($szSubnet);
-                    $dwNetmask = (0xffffffff >> intval($szNetmaskBits)) & 0xffffffff;
+                    $dwNetmask = ~((1 << (32 - intval($szNetmaskBits))) - 1) & 0xffffffff;
                 } else {
                     $dwSubnet = MiscNet::Ipv4StringToDword($aMatchSubnet[1]);
                     $dwNetmask = 0xffffffff;
@@ -477,7 +479,7 @@ class MiscNet implements IUnblockable, IScriptOpaque {
     static function AddRouteIpv6($abAddr, $dwPrefixLen, $abVia, $szDev) {
         shell_exec(
             "ip -6 route" .
-                " add " . escapeshellarg(MiscNet::BinaryToIpv6String($abAddr)) . ($dwPrefixLen === false ? "" : "/" . intval($dwNetmask)) .
+                " add " . escapeshellarg(MiscNet::BinaryToIpv6String($abAddr)) . ($dwPrefixLen === false ? "" : "/" . intval($dwPrefixLen)) .
                 (($abVia === false) ? "" : " via " . escapeshellarg(MiscNet::BinaryToIpv6String($abVia))) .
                 " dev " . escapeshellarg($szDev) .
                 " 2>/dev/null"
@@ -518,6 +520,68 @@ class MiscNet implements IUnblockable, IScriptOpaque {
         shell_exec("ip" . ($bIsIpv6 ? "6" : "") . "tables -t " . escapeshellarg($szTable) . " -X " . escapeshellarg($szNewChain) . " 2>/dev/null");
     }
 
+    function StateMachineSet_log_file($oValue) {
+        if (!($oValue instanceof ScriptStringLiteral)) {
+            throw new ScriptInvokeError("log_file must be of type string");
+        }
+
+        /* leeg pad = logging uitschakelen */
+        if ($oValue->szLiteral === "") {
+            if ($this->hLogFile !== null) {
+                printf("[i] logging uitgeschakeld\n");
+                fwrite($this->hLogFile, "[" . date('Y-m-d H:i:s') . "] === logging uitgeschakeld ===\n");
+                fflush($this->hLogFile);
+                ob_end_flush();
+                fclose($this->hLogFile);
+                $this->hLogFile = null;
+                $this->szLogFile = null;
+            }
+            return;
+        }
+
+        /* al actieve logging netjes afsluiten voor we een nieuwe openen */
+        if ($this->hLogFile !== null) {
+            fwrite($this->hLogFile, "[" . date('Y-m-d H:i:s') . "] === logging omgeleid naar " . $oValue->szLiteral . " ===\n");
+            fflush($this->hLogFile);
+            ob_end_flush();
+            fclose($this->hLogFile);
+            $this->hLogFile = null;
+        }
+
+        $szLogFile = $oValue->szLiteral;
+        $szDir = dirname($szLogFile);
+
+        if (!is_dir($szDir)) {
+            throw new ScriptInvokeError("log_file: map bestaat niet: " . $szDir);
+        }
+
+        $hLogFile = fopen($szLogFile, 'a');
+        if ($hLogFile === false) {
+            throw new ScriptInvokeError("log_file: kan bestand niet openen voor schrijven: " . $szLogFile);
+        }
+
+        $this->szLogFile = $szLogFile;
+        $this->hLogFile = $hLogFile;
+
+        /* sessie-markering in het logbestand */
+        fwrite($hLogFile, "\n[" . date('Y-m-d H:i:s') . "] === VVTS sessie gestart ===\n");
+        fflush($hLogFile);
+
+        /*
+         * Zet output buffering op als tee: elke printf() wordt naar zowel de
+         * terminal als het logbestand gestuurd. chunk_size=1 zorgt dat output
+         * real-time wordt doorgesluisd (geen vertraging in de main loop).
+         */
+        ob_start(function($buffer) use ($hLogFile) {
+            fwrite($hLogFile, $buffer);
+            fflush($hLogFile);
+            return $buffer; /* ook op de terminal tonen */
+        }, 1);
+        ob_implicit_flush(true);
+
+        printf("[i] logging naar %s\n", $szLogFile);
+    }
+
     function StateMachineInvoke_masquerade(...$aArguments) {
         if (count($aArguments) != 1) {
             throw new ScriptInvokeError("masquerade requires an argument");
@@ -554,10 +618,10 @@ class MiscNet implements IUnblockable, IScriptOpaque {
                 shell_exec("ip6tables -t nat -A VVTS_POSTROUTING_MASQ -o " . escapeshellarg($oDefaultRouteIpv6->szDev) . " -j MASQUERADE");
 
                 if(!$bIpv6ForwardEnabled) {
-                    @file_put_contents("/proc/sys/net/ipv6/conf/all/forwarding", "1");
-                    if ($this->bRestoreIpv6ForwardEnabled !== null) {
+                    if ($this->bRestoreIpv6ForwardEnabled === null) {
                         $this->bRestoreIpv6ForwardEnabled = 0;
                     }
+                    @file_put_contents("/proc/sys/net/ipv6/conf/all/forwarding", "1");
                 }
 
                 shell_exec("ip6tables -A VVTS_FORWARD_DEFAULT -o " . escapeshellarg($oDefaultRouteIpv6->szDev) . " -j ACCEPT");
@@ -570,7 +634,6 @@ class MiscNet implements IUnblockable, IScriptOpaque {
             MiscNet::IptablesDeinitBranch(true, "filter", "FORWARD", "VVTS_FORWARD_DEFAULT");
         }
 
-_return:
         return new ScriptVoid();
     }
 

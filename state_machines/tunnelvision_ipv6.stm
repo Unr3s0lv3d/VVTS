@@ -11,7 +11,7 @@ state init begin:
   (* not an IPv6 ULA because android will refuse to connect *)
   my_ip = "2a00:1337:1:1::1";
   (* we want target_ip to flow outside of the tunnel *)
-  target_ip = miscnet.lookup_ipv6("v6.phphooligans.nl");
+  target_ip = miscnet.lookup_ipv6("yourserver.com");
 
   (* perform nat on the interface where our default gateway is at *)
   miscnet.masquerade("true");
@@ -35,7 +35,7 @@ state ap_up:
   mon = trafficmonitor();
   mon.interface = ap.ap_interface;
   (* make sure validation_server resolves to target_ip *)
-  mon.validation_server = "https://v6.phphooligans.nl:8443/";
+  mon.validation_server = "https://yourserver.com/";
   (* specify vpn endpoints so that the monitor can detect whether vpn traffic occurs *)
   endpoints = "tcp://ams.nl.eduvpn.org:443;udp://ams.nl.eduvpn.org:443";
   endpoints = concat(endpoints, ";udp://ifi2-vpn.guest.eduvpn.no:1194");
